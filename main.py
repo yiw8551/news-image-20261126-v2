@@ -14,6 +14,9 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, "entry.png")
 
+# First 8 bytes every valid PNG must start with (RFC 2083).
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+
 
 def sha256_of(path):
     h = hashlib.sha256()
@@ -21,6 +24,20 @@ def sha256_of(path):
         for chunk in iter(lambda: f.read(65536), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def validate_png(path):
+    """Fail loudly if the source is not a valid PNG, before copying."""
+    if not os.path.isfile(path):
+        print("error: source PNG not found: %s" % path, file=sys.stderr)
+        return False
+    with open(path, "rb") as f:
+        header = f.read(len(PNG_SIGNATURE))
+    if header != PNG_SIGNATURE:
+        print("error: %s is not a valid PNG (bad signature)" % path,
+              file=sys.stderr)
+        return False
+    return True
 
 
 def main():
@@ -32,6 +49,8 @@ def main():
     else:
         outdir = "/output"
     os.makedirs(outdir, exist_ok=True)
+    if not validate_png(SRC):
+        return 1
     dst = os.path.join(outdir, "entry.png")
     shutil.copyfile(SRC, dst)
     if sha256_of(SRC) != sha256_of(dst):
